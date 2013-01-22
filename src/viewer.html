@@ -141,6 +141,15 @@ Projection: <select id="glmol01_projection">
  <option selected="selected" value="perspective">perspective</option>
 </select><br><br>
 <button id="glmol01_reload">Apply</button> <button onClick="saveImage()">Take screenshot</button>
+Surface is an EXPERIMENTAL feature. Browser might get very slow!<br>
+<input id="glmol01_showSurface" checked="checked" type="checkbox">Show 
+<select id="glmol01_surface">
+ <option selected="selected" value="ses">solvent excluded surface</option>
+ <option value="sas">solvent accessible surface</option>
+ <option value="ms">molecular surface</option>
+ <option value="vdw">van der Waals surface</option>
+</select>
+<input id="glmol01_surfaceWireframe" type="checkbox">as wireframe
 </div></div>
 
 <div style="position: absolute; color: white; right: 10px; bottom: 10px; z-index: 99; background-color: rgba(0, 0, 0, 0.65);">
@@ -164,8 +173,11 @@ Please also make sure that WebGL is enabled in your browser.
 <div id="glmol01_pdbTitle" style="position:absolute; color: white; background-color: rgba(0, 0, 0, 0.65); font-size:80%"></div>
 
 <script src="js/jquery-1.7.min.js"></script>
-<script src="js/Three49custom.js"></script>
+<script src="three.js/build/three.js"></script>
 <script type="text/javascript" src="js/GLmol.js"></script>
+<script type="text/javascript" src="js/ProteinSurface4.js"></script>
+<script type="text/javascript" src="js/MarchingCubeData.js"></script>
+
 <script type="text/javascript">
 
 addTab('#glmol01_srcbox', '400px', 0);
@@ -251,6 +263,7 @@ function defineRepFromController() {
 
 var time = new Date();
    var all = this.getAllAtoms();
+   var protatms = this.removeSolvents(this.getProteins(all));
    if ($(idHeader + 'biomt').attr('checked') && this.protein.biomtChains != "") all = this.getChain(all, this.protein.biomtChains);
    var allHet = this.getHetatms(all);
    var hetatm = this.removeSolvents(allHet);
@@ -363,6 +376,20 @@ console.log("hetatms " + (+new Date() - time)); time = new Date();
       this.drawSymmetryMatesWithTranslation2(this.modelGroup, asu, this.protein.symMat);
    }
    this.modelGroup.add(asu);
+   
+   if ($(idHeader + 'showSurface').attr('checked')) {
+	      var surfaceMode = $(idHeader + 'surface').val();
+	      var wireframe = $(idHeader + 'surfaceWireframe').attr('checked');
+	      if (surfaceMode == 'sas') {
+	         this.generateMesh(this.modelGroup, protatms, protatms, 3, wireframe,1,true);
+	      } else if (surfaceMode == 'ms') {
+	         this.generateMesh(this.modelGroup, protatms, protatms, 4, wireframe,1,true);
+	      } else if (surfaceMode == 'ses') {
+	         this.generateMesh(this.modelGroup, protatms, protatms, 2, wireframe,1,true);
+	      } else if (surfaceMode == 'vdw') {
+	         this.generateMesh(this.modelGroup, protatms, protatms, 1, wireframe,1,true);
+	     }
+	   }
 };
 
 glmol01.defineRepresentation = defineRepFromController;
