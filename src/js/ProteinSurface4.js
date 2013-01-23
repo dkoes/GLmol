@@ -892,19 +892,6 @@ var ProteinSurface = (function() {
 		}
 	};
 
-	// return the flat index corresponding to the pos corner of
-	// cube i,j,k
-	var indexFromPos = function(i, j, k, pos) {
-		if (pos & 1)
-			k++;
-		if (pos & 2)
-			j++;
-		if (pos & 4)
-			i++;
-
-		return ((pWidth * i) + j) * pHeight + k;
-	};
-
 	// create (or retrieve) a vertex at the appropriate point for
 	// the edge (p1,p2)
 	var getVertex = function(i, j, k, code, p1, p2, vertnums) {
@@ -916,17 +903,18 @@ var ProteinSurface = (function() {
 		if (!val1 && val2)
 			p = p2;
 
-		var index = indexFromPos(i, j, k, p);
+		//adjust i,j,k by p
+		if (p & 1)
+			k++;
+		if (p & 2)
+			j++;
+		if (p & 4)
+			i++;
+		
+		var index = ((pWidth * i) + j) * pHeight + k;
 		if (vertnums[index] < 0) // not created yet
 		{
 			vertnums[index] = verts.length;
-			if (p & 1)
-				k++;
-			if (p & 2)
-				j++;
-			if (p & 4)
-				i++;
-
 			verts.push(new Vector3(i, j, k));
 		}
 		return vertnums[index];
@@ -954,22 +942,24 @@ var ProteinSurface = (function() {
 
 		var i, j, k, p, t;
 		var l, w, h, trilen, vlen;
-		var vertList = new Array(12);
+		var vertList = new Int32Array(12);
 		for (i = 0, l = pLength - 1; i < l; i++) {
 			for (j = 0, w = pWidth - 1; j < w; j++) {
 				for (k = 0, h = pHeight - 1; k < h; k++) {
 					var code = 0;
 					for (p = 0; p < 8; p++) {
-						var index = indexFromPos(i, j, k, p);
+						var index =  ((pWidth * (i+((p&4)>>2))) + j + ((p&2)>>1)) * pHeight + k + (p&1);
+
 						var val = !!(vpBits[index] & ISDONE);
 						code |= val << p;
 					}
 
 					// set the vertList
-					var ecode = etable[code];
-					if (ecode == 0)
+					var ttable = tritable[code];
+					if (ttable.length == 0)
 						continue;
 
+					var ecode = etable[code];
 					// based on code, determine what vertices are needed for
 					// cube i,j,k
 					// if necessary create them (adding to verts and setting
@@ -1001,13 +991,11 @@ var ProteinSurface = (function() {
 						vertList[11] = getVertex(i, j, k, code, 2, 6, vertnums);
 
 					// add all faces
-					var ttable = tritable[code];
 					for (t = 0, trilen = ttable.length; t < trilen; t += 3) {
 						var a = vertList[ttable[t]];
 						var b = vertList[ttable[t + 1]];
 						var c = vertList[ttable[t + 2]];
-						if (a != b && b != c && a != c) 
-							faces.push(new Face3(a, b, c));
+						faces.push(new Face3(a, b, c));
 					}
 
 				}
