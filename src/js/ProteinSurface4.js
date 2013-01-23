@@ -946,6 +946,50 @@ var ProteinSurface = (function() {
 		var etable = MarchingCube.edgeTable;
 		var tritable = MarchingCube.triTable;
 
+		var counter = function() {
+			var data = Array(256);
+			for(var i = 0; i < 256; i++)
+				data[i] = [];
+			
+			this.incrementUsed = function( i,  j) {
+				if(typeof data[i][j] === 'undefined')
+					data[i][j] = {used: 0, unused: 0};
+				data[i][j].used++;
+			};
+			
+			this.incrementUnused = function( i,  j) {
+				if(typeof data[i][j] === 'undefined')
+					data[i][j] = {used: 0, unused: 0};
+				data[i][j].unused++;
+				
+			};
+			
+			this.print = function() {
+				
+				var table = MarchingCube.triTable;
+				var str;
+				var newtable = [];
+				for(var i = 0; i < table.length; i++)
+				{
+					var newarr = [];
+					for(var j = 0; j < table[i].length; j+=3)
+					{
+						var k = j/3;
+						if(typeof data[i][k] === 'undefined' || !data[i][k].unused)
+						{
+							newarr.push(table[i][j]);
+							newarr.push(table[i][j+1]);
+							newarr.push(table[i][j+2]);
+						}
+						if(typeof data[i][k] === 'undefined')
+							console.log("undef "+i+","+k);
+					}
+					newtable.push(newarr);
+				}
+				console.log(JSON.stringify(newtable));
+			} ;
+		};
+		var counts = new counter();
 		var i, j, k, p, t;
 		var l, w, h, trilen, vlen;
 		var vertList = new Array(12);
@@ -1001,13 +1045,18 @@ var ProteinSurface = (function() {
 						var b = vertList[ttable[t + 1]];
 						var c = vertList[ttable[t + 2]];
 
-						if (a != b && b != c && a != c)
+						if (a != b && b != c && a != c) {
 							faces.push(new Face3(a,b,c));
+							counts.incrementUsed(code, t/3);
+						}
+						else
+							counts.incrementUnused(code, t/3);
 					}
 
 				}
 			}
 		}
+		counts.print();
 		// set atom ids
 		for (i = 0, vlen = verts.length; i < vlen; i++) {
 			verts[i].atomid = vpAtomID[verts[i].x * pWidth * pHeight + pHeight
