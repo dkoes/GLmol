@@ -81,18 +81,18 @@ var ProteinSurface = (function() {
 		for ( var i = 0, lim = atomlist.length; i < lim; i++)
 			atomsToShow[atomlist[i]] = true;
 		var vertices = verts;
-		for (i = 0; i < vertnumber; i++) {
+		for (i = 0; i < vertices.length; i++) {
 			vertices[i].x = vertices[i].x / scaleFactor - ptranx;
 			vertices[i].y = vertices[i].y / scaleFactor - ptrany;
 			vertices[i].z = vertices[i].z / scaleFactor - ptranz;
 		}
 
-		for ( var i = 0; i < facenumber; i++) {
+		for ( var i = 0; i < faces.length; i++) {
 			var f = faces[i];
 			var a = vertices[f.a].atomid, b = vertices[f.b].atomid, c = vertices[f.c].atomid;
 			if (!atomsToShow[a] && !atomsToShow[b] && !atomsToShow[c]) {
 				continue;
-			}
+			}			
 			faces.push(f);
 		}
 		return {
@@ -987,24 +987,21 @@ var ProteinSurface = (function() {
 			for (j = 0, w = pWidth - 1; j < w; j++) {
 				for (k = 0, h = pHeight - 1; k < h; k++) {
 					var code = 0;
+					var pbcode = 0;
 					for (p = 0; p < 8; p++) {
 						var index = indexFromPos(i, j, k, p);
-						code |= !!(vpBits[index] & ISDONE);
-					}
-					
-					//Paul Bourke does not number his corners how I would like..
-					var pbcode = 0;
-					switch(code) {
-					case 0: pbcode = 0; break;
-					case 1: pbcode = 1; break;
-					case 2: pbcode = 3; break;
-					case 3: pbcode = 2; break;
-					case 4: pbcode = 4; break;
-					case 5: pbcode = 5; break;
-					case 6: pbcode = 7; break;
-					case 7: pbcode = 6; break;
-					};
-					
+						var val = !!(vpBits[index] & ISDONE); 
+						code |=  val << p;
+						var pb = p;
+						//PaulBourke does not number his corners how I would like
+						switch(pb) {
+						case 2: pb = 3; break;
+						case 3: pb = 2; break;
+						case 6: pb = 7; break;
+						case 7: pb = 6; break;
+						};
+						pbcode |= val << pb;
+					}					
 
 					setVertList(i, j, k, pbcode, code, vertnums, vertList);
 					var table = MarchingCube.triTable[pbcode];
