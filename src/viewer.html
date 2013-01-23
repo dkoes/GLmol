@@ -380,14 +380,16 @@ console.log("hetatms " + (+new Date() - time)); time = new Date();
    if ($(idHeader + 'showSurface').attr('checked')) {
 	      var surfaceMode = $(idHeader + 'surface').val();
 	      var wireframe = $(idHeader + 'surfaceWireframe').attr('checked');
+	      var mat = {wireframe: wireframe};
+	      var toshow = protatms;
 	      if (surfaceMode == 'sas') {
-	         this.generateMesh(this.modelGroup, protatms, protatms, 3, wireframe,1,true);
+	         this.generateMesh(this.modelGroup, toshow, toshow, 3, mat);
 	      } else if (surfaceMode == 'ms') {
-	         this.generateMesh(this.modelGroup, protatms, protatms, 4, wireframe,1,true);
+	         this.generateMesh(this.modelGroup, toshow, toshow, 4, mat);
 	      } else if (surfaceMode == 'ses') {
-	         this.generateMesh(this.modelGroup, protatms, protatms, 2, wireframe,1,true);
+	         this.generateMesh(this.modelGroup, toshow, toshow, 2, mat);
 	      } else if (surfaceMode == 'vdw') {
-	         this.generateMesh(this.modelGroup, protatms, protatms, 1, wireframe,1,true);
+	         this.generateMesh(this.modelGroup, toshow, toshow, 1, mat);
 	     }
 	   }
 };

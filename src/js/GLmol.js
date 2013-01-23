@@ -1589,6 +1589,8 @@ var GLmol = (function() {
 		var xmax = ymax = zmax = -9999;
 		var xsum = ysum = zsum = cnt = 0;
 
+		if(atomlist.length == 0)
+			return [ [0,0,0],[0,0,0],[0,0,0]];
 		for ( var i in atomlist) {
 			var atom = this.atoms[atomlist[i]];
 			if (atom == undefined)
@@ -1605,6 +1607,7 @@ var GLmol = (function() {
 			ymax = (ymax > atom.y) ? ymax : atom.y;
 			zmax = (zmax > atom.z) ? zmax : atom.z;
 		}
+		
 		return [ [ xmin, ymin, zmin ], [ xmax, ymax, zmax ],
 				[ xsum / cnt, ysum / cnt, zsum / cnt ] ];
 	};
@@ -2182,10 +2185,8 @@ var GLmol = (function() {
 		func(this);
 	};
 
-	// create a mesh defined from the passed vertices and faces
-	// sets glmol.surfaceGeo
-	var generateSurfaceMesh = function(glmol, VandF, wireframe,
-			wireframeLinewidth) {
+	// create a mesh defined from the passed vertices and faces and material
+	var generateSurfaceMesh = function(glmol, VandF,mat) {
 		var geo = new THREE.Geometry();
 		// reconstruct vertices and faces
 		geo.vertices = [];
@@ -2210,15 +2211,8 @@ var GLmol = (function() {
 
 		geo.computeFaceNormals();
 		geo.computeVertexNormals(false);
-		glmol.surfaceGeo = geo;
 
-		var mat = new THREE.MeshLambertMaterial();
-		mat.vertexColors = THREE.VertexColors;
-		mat.wireframe = wireframe;
-		mat.wireframeLinewidth = wireframeLinewidth;
-		// mat.opacity = 0.8;
-		// mat.transparent = true;
-		var mesh = new THREE.Mesh(glmol.surfaceGeo, mat);
+		var mesh = new THREE.Mesh(geo, mat);
 		mesh.doubleSided = true;
 
 		return mesh;
@@ -2252,7 +2246,7 @@ var GLmol = (function() {
 		console.log("buildboundaryetc " + (time4 - time3) + "  "
 				+ (time4 - time) + "ms");
 
-		ps.marchingcube2(type);
+		ps.marchingcube(type);
 
 		var time5 = new Date();
 		console.log("marching cube " + (time5 - time4) + "  " + (time5 - time)
@@ -2269,24 +2263,30 @@ var GLmol = (function() {
 	// surfaces
 	// of atomsToShow are displayed (e.g., for showing cavities)
 	GLmol.prototype.generateMesh = function(group, atomlist, atomsToShow, type,
-			wireframe, wireframeLinewidth, sync) {
+			material, sync) {
 		var time = new Date();
-		wireframe = wireframe || false;
-		wireframeLinewidth = wireframeLinewidth || 1;
+
 
 		var extent = this.getExtent(atomsToShow);
 		var expandedExtent = [
 				[ extent[0][0] - 4, extent[0][1] - 4, extent[0][2] - 4 ],
-				[ extent[1][0] + 4, extent[1][1] + 4, extent[1][2] + 4 ] ]
+				[ extent[1][0] + 4, extent[1][1] + 4, extent[1][2] + 4 ] ];
 		var extendedAtoms = this.getAtomsWithin(atomlist, expandedExtent);
 		this.meshType = type;
 
+		var mat = new THREE.MeshLambertMaterial();
+		mat.vertexColors = THREE.VertexColors;
+		
+		for(var prop in material) {
+			if(material.hasOwnProperty(prop))
+				mat[prop] = material[prop];
+		}
+		 
 		if (sync) { // don't use worker
 			var VandF = generateMeshSyncHelper(type, expandedExtent,
 					extendedAtoms, atomsToShow, this.atoms);
 			console.log("vertices: "+VandF.vertices.length + "  faces: " + VandF.faces.length);
-			var mesh = generateSurfaceMesh(this, VandF, wireframe,
-					wireframeLinewidth);
+			var mesh = generateSurfaceMesh(this, VandF, mat);
 			group.add(mesh);
 		} else { // use worker
 
@@ -2294,8 +2294,7 @@ var GLmol = (function() {
 			var glmol = this;
 			worker.onmessage = function(event) {
 				var VandF = event.data;
-				var mesh = generateSurfaceMesh(glmol, VandF, wireframe,
-						wireframeLinewidth);
+				var mesh = generateSurfaceMesh(glmol, VandF, mat);
 				group.add(mesh);
 				glmol.show();
 			};
