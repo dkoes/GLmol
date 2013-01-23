@@ -2252,7 +2252,7 @@ var GLmol = (function() {
 		console.log("buildboundaryetc " + (time4 - time3) + "  "
 				+ (time4 - time) + "ms");
 
-		ps.marchingcube(type);
+		ps.marchingcube2(type);
 
 		var time5 = new Date();
 		console.log("marching cube " + (time5 - time4) + "  " + (time5 - time)

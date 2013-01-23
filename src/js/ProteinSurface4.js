@@ -52,7 +52,7 @@ var ProteinSurface = (function() {
 	// Calpha c n o s h p Cbeta ne fe other ox hx
 
 	var depty = new Array(13), widxz = new Array(13);
-	var fixsf = 2;
+	var fixsf = 2; // SHOULD BE 2
 	var faces, verts;
 	var nb = [ [ 1, 0, 0 ], [ -1, 0, 0 ], [ 0, 1, 0 ], [ 0, -1, 0 ],
 			[ 0, 0, 1 ], [ 0, 0, -1 ], [ 1, 1, 0 ], [ 1, -1, 0 ], [ -1, 1, 0 ],
@@ -88,14 +88,12 @@ var ProteinSurface = (function() {
 		}
 
 		var finalfaces = []
-		for ( var i = 0; i < faces.length; i++) { 
+		for ( var i = 0; i < faces.length; i++) {
 			var f = faces[i];
-			if(f.a == f.b && f.b == f.c)
-				continue;
 			var a = vertices[f.a].atomid, b = vertices[f.b].atomid, c = vertices[f.c].atomid;
 			if (!atomsToShow[a] && !atomsToShow[b] && !atomsToShow[c]) {
 				continue;
-			}			
+			}
 
 			finalfaces.push(f);
 		}
@@ -278,7 +276,7 @@ var ProteinSurface = (function() {
 			scaleFactor = pmaxz - pminz;
 		scaleFactor = (boxLength - 1.0) / scaleFactor;
 
-		boxLength = Math.floor(boxLength * fixsf / scaleFactor);
+		boxLength = Math.floor(boxLength * fixsf / scaleFactor) + 1;
 		scaleFactor = fixsf;
 		var threshbox = 180; // maximum possible boxsize
 		if (boxLength > threshbox) {
@@ -901,72 +899,31 @@ var ProteinSurface = (function() {
 		return ((pWidth * i) + j) * pHeight + k;
 	};
 
-	var createVertexAtPos = function(i,j,k,pos) {
-		if (pos & 1)
-			k++;
-		if (pos & 2)
-			j++;
-		if (pos & 4)
-			i++;
+	// create (or retrieve) a vertex at the appropriate point for
+	// the edge (p1,p2)
+	var getVertex = function(i, j, k, code, p1, p2, vertnums) {
+		var val1 = !!(code & (1 << p1));
+		var val2 = !!(code & (1 << p2));
 
-		return new Vector3(i,j,k);
-	};
-	
-	//create (or retrieve) a vertex at the appropriate point for
-	//the edge (p1,p2)
-	var getVertex = function(i,j,k,code,p1,p2, vertnums) {
-		var val1 = !!(code & (1<<p1));
-		var val2 = !!(code & (1<<p2));
-		
-		//p1 if they are the same or if !val1
+		// p1 if they are the same or if !val1
 		var p = p1;
-		if(!val1 && val2)
+		if (!val1 && val2)
 			p = p2;
 
-				
-		var index = indexFromPos(i,j,k,p);
-		if(vertnums[index] < 0) //not created yet
+		var index = indexFromPos(i, j, k, p);
+		if (vertnums[index] < 0) // not created yet
 		{
 			vertnums[index] = verts.length;
-			verts.push(createVertexAtPos(i,j,k,p));
+			if (p & 1)
+				k++;
+			if (p & 2)
+				j++;
+			if (p & 4)
+				i++;
+
+			verts.push(new Vector3(i, j, k));
 		}
 		return vertnums[index];
-	};
-	
-	// based on code, determine what vertices are needed for cube i,j,k
-	// if necessary create them (adding to verts and setting vertnums)
-	// and set the appropriate vertex indices in vertList
-	var setVertList = function(i, j, k, pbcode, code, vertnums, vertlist) {
-		var table = MarchingCube.edgeTable;
-		if (table[pbcode] == 0)
-			return (0);
-
-		/* Find the vertices where the surface intersects the cube */
-		//WARNING: corner identifiers swapped 2-3 6-7
-		if (table[pbcode] & 1)
-			vertlist[0] = getVertex(i,j,k, code, 0, 1, vertnums);
-		if (table[pbcode] & 2)
-			vertlist[1] = getVertex(i,j,k, code, 1, 3, vertnums);
-		if (table[pbcode] & 4)
-			vertlist[2] = getVertex(i,j,k, code, 3, 2, vertnums);
-		if (table[pbcode] & 8)
-			vertlist[3] = getVertex(i,j,k, code, 2, 0, vertnums);
-		if (table[pbcode] & 16)
-			vertlist[4] = getVertex(i,j,k, code, 4, 5, vertnums);
-		if (table[pbcode] & 32)
-			vertlist[5] = getVertex(i,j,k, code, 5, 7, vertnums);
-		if (table[pbcode] & 64)
-			vertlist[6] = getVertex(i,j,k, code, 7, 6, vertnums);
-		if (table[pbcode] & 128)
-			vertlist[7] = getVertex(i,j,k, code, 6, 4, vertnums);
-		if (table[pbcode] & 256)
-			vertlist[8] = getVertex(i,j,k, code, 0, 4, vertnums);
-		if (table[pbcode] & 512)
-			vertlist[9] = getVertex(i,j,k, code, 1, 5, vertnums);
-		if (table[pbcode] & 1024)
-			vertlist[10] = getVertex(i,j,k, code, 3, 7, vertnums);
-		if (table[pbcode] & 2048)
-			vertlist[11] = getVertex(i,j,k, code, 2, 6, vertnums);
 	};
 
 	// this is based off the code here:
@@ -986,6 +943,9 @@ var ProteinSurface = (function() {
 		faces = new Array();
 
 		// consider every grid cube
+		var etable = MarchingCube.edgeTable;
+		var tritable = MarchingCube.triTable;
+
 		var i, j, k, p, t;
 		var l, w, h, trilen, vlen;
 		var vertList = new Array(12);
@@ -993,34 +953,62 @@ var ProteinSurface = (function() {
 			for (j = 0, w = pWidth - 1; j < w; j++) {
 				for (k = 0, h = pHeight - 1; k < h; k++) {
 					var code = 0;
-					var pbcode = 0;
 					for (p = 0; p < 8; p++) {
 						var index = indexFromPos(i, j, k, p);
-						var val = !!(vpBits[index] & ISDONE); 
-						code |=  val << p;
-						var pb = p;
-						//PaulBourke does not number his corners how I would like
-						switch(pb) {
-						case 2: pb = 3; break;
-						case 3: pb = 2; break;
-						case 6: pb = 7; break;
-						case 7: pb = 6; break;
-						};
-						pbcode |= val << pb;
-					}					
-
-					setVertList(i, j, k, pbcode, code, vertnums, vertList);
-					var table = MarchingCube.triTable[pbcode];
-					for (t = 0, trilen = table.length; t < trilen; t += 3) {
-						faces
-								.push(new Face3(vertList[table[t]],
-										vertList[table[t + 1]],
-										vertList[table[t + 2]]));
+						var val = !!(vpBits[index] & ISDONE);
+						code |= val << p;
 					}
+
+					// set the vertList
+					var ecode = etable[code];
+					if (ecode == 0)
+						continue;
+
+					// based on code, determine what vertices are needed for
+					// cube i,j,k
+					// if necessary create them (adding to verts and setting
+					// vertnums)
+					// and set the appropriate vertex indices in vertList
+					if (ecode & 1)
+						vertList[0] = getVertex(i, j, k, code, 0, 1, vertnums);
+					if (ecode & 2)
+						vertList[1] = getVertex(i, j, k, code, 1, 3, vertnums);
+					if (ecode & 4)
+						vertList[2] = getVertex(i, j, k, code, 3, 2, vertnums);
+					if (ecode & 8)
+						vertList[3] = getVertex(i, j, k, code, 2, 0, vertnums);
+					if (ecode & 16)
+						vertList[4] = getVertex(i, j, k, code, 4, 5, vertnums);
+					if (ecode & 32)
+						vertList[5] = getVertex(i, j, k, code, 5, 7, vertnums);
+					if (ecode & 64)
+						vertList[6] = getVertex(i, j, k, code, 7, 6, vertnums);
+					if (ecode & 128)
+						vertList[7] = getVertex(i, j, k, code, 6, 4, vertnums);
+					if (ecode & 256)
+						vertList[8] = getVertex(i, j, k, code, 0, 4, vertnums);
+					if (ecode & 512)
+						vertList[9] = getVertex(i, j, k, code, 1, 5, vertnums);
+					if (ecode & 1024)
+						vertList[10] = getVertex(i, j, k, code, 3, 7, vertnums);
+					if (ecode & 2048)
+						vertList[11] = getVertex(i, j, k, code, 2, 6, vertnums);
+
+					// add all faces
+					var ttable = tritable[code];
+					for (t = 0, trilen = ttable.length; t < trilen; t += 3) {
+						var a = vertList[ttable[t]];
+						var b = vertList[ttable[t + 1]];
+						var c = vertList[ttable[t + 2]];
+
+						if (a != b && b != c && a != c)
+							faces.push(new Face3(a,b,c));
+					}
+
 				}
 			}
 		}
-		//set atom ids
+		// set atom ids
 		for (i = 0, vlen = verts.length; i < vlen; i++) {
 			verts[i].atomid = vpAtomID[verts[i].x * pWidth * pHeight + pHeight
 					* verts[i].y + verts[i].z];
