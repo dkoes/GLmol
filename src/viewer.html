@@ -183,12 +183,12 @@ Please also make sure that WebGL is enabled in your browser.
 addTab('#glmol01_srcbox', '400px', 0);
 addTab('#glmol01_viewbox', '400px', 1);
 addTab('#glmol01_infobox', '400px', 2);
-
+$('#loading').hide();
 var glmol01 = new GLmol('glmol01', true);
 var query = window.location.search.substring(1);
-if (query == '') download('pdb:2POR');
+if (query == '') download('pdb:2por');
 else download(query);
-
+ 
 function download(query) {
    var baseURL = '';
    if (query.substr(0, 4) == 'pdb:') {
@@ -393,6 +393,7 @@ console.log("hetatms " + (+new Date() - time)); time = new Date();
 };
 
 glmol01.defineRepresentation = defineRepFromController;
+ //glmol01.loadMoleculeStr(false,"ATOM   5828  H   PHE B 324      76.282  40.845  37.990  1.00 25.15           H\n");
 
 </script>
 

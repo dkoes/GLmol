@@ -87,23 +87,27 @@ var ProteinSurface = (function() {
 			vertices[i].z = vertices[i].z / scaleFactor - ptranz;
 		}
 
-		for ( var i = 0; i < faces.length; i++) {
+		var finalfaces = []
+		for ( var i = 0; i < faces.length; i++) { 
 			var f = faces[i];
+			if(f.a == f.b && f.b == f.c)
+				continue;
 			var a = vertices[f.a].atomid, b = vertices[f.b].atomid, c = vertices[f.c].atomid;
 			if (!atomsToShow[a] && !atomsToShow[b] && !atomsToShow[c]) {
 				continue;
 			}			
-			faces.push(f);
+
+			finalfaces.push(f);
 		}
 		return {
 			vertices : vertices,
-			faces : faces
+			faces : finalfaces
 		};
 	};
 
 	this.laplaciansmooth = function(numiter) {
-		var tps = new Array(vertnumber);
-		for ( var i = 0; i < vertnumber; i++)
+		var tps = new Array(verts.length);
+		for ( var i = 0; i < verts.length; i++)
 			tps[i] = {
 				x : 0,
 				y : 0,
@@ -112,10 +116,10 @@ var ProteinSurface = (function() {
 		var vertdeg = new Array(20);
 		var flagvert;
 		for ( var i = 0; i < 20; i++)
-			vertdeg[i] = new Array(vertnumber);
-		for ( var i = 0; i < vertnumber; i++)
+			vertdeg[i] = new Array(verts.length);
+		for ( var i = 0; i < verts.length; i++)
 			vertdeg[0][i] = 0;
-		for ( var i = 0; i < facenumber; i++) {
+		for ( var i = 0; i < faces.length; i++) {
 			flagvert = true;
 			for ( var j = 0; j < vertdeg[0][faces[i].a]; j++) {
 				if (faces[i].b == vertdeg[j + 1][faces[i].a]) {
@@ -191,7 +195,7 @@ var ProteinSurface = (function() {
 		var ssign;
 		var outwt = 0.75 / (scaleFactor + 3.5); // area-preserving
 		for ( var k = 0; k < numiter; k++) {
-			for ( var i = 0; i < vertnumber; i++) {
+			for ( var i = 0; i < verts.length; i++) {
 				if (vertdeg[0][i] < 3) {
 					tps[i].x = verts[i].x;
 					tps[i].y = verts[i].y;
@@ -228,7 +232,7 @@ var ProteinSurface = (function() {
 					tps[i].z /= wt + vertdeg[0][i];
 				}
 			}
-			for ( var i = 0; i < vertnumber; i++) {
+			for ( var i = 0; i < verts.length; i++) {
 				verts[i].x = tps[i].x;
 				verts[i].y = tps[i].y;
 				verts[i].z = tps[i].z;
@@ -916,8 +920,9 @@ var ProteinSurface = (function() {
 		
 		//p1 if they are the same or if !val1
 		var p = p1;
-		if(val1 && !val2)
+		if(!val1 && val2)
 			p = p2;
+
 				
 		var index = indexFromPos(i,j,k,p);
 		if(vertnums[index] < 0) //not created yet
@@ -937,30 +942,31 @@ var ProteinSurface = (function() {
 			return (0);
 
 		/* Find the vertices where the surface intersects the cube */
+		//WARNING: corner identifiers swapped 2-3 6-7
 		if (table[pbcode] & 1)
 			vertlist[0] = getVertex(i,j,k, code, 0, 1, vertnums);
 		if (table[pbcode] & 2)
-			vertlist[1] = getVertex(i,j,k, code, 1, 2, vertnums);
+			vertlist[1] = getVertex(i,j,k, code, 1, 3, vertnums);
 		if (table[pbcode] & 4)
-			vertlist[2] = getVertex(i,j,k, code, 2, 3, vertnums);
+			vertlist[2] = getVertex(i,j,k, code, 3, 2, vertnums);
 		if (table[pbcode] & 8)
-			vertlist[3] = getVertex(i,j,k, code, 3, 0, vertnums);
+			vertlist[3] = getVertex(i,j,k, code, 2, 0, vertnums);
 		if (table[pbcode] & 16)
 			vertlist[4] = getVertex(i,j,k, code, 4, 5, vertnums);
 		if (table[pbcode] & 32)
-			vertlist[5] = getVertex(i,j,k, code, 5, 6, vertnums);
+			vertlist[5] = getVertex(i,j,k, code, 5, 7, vertnums);
 		if (table[pbcode] & 64)
-			vertlist[6] = getVertex(i,j,k, code, 6, 7, vertnums);
+			vertlist[6] = getVertex(i,j,k, code, 7, 6, vertnums);
 		if (table[pbcode] & 128)
-			vertlist[7] = getVertex(i,j,k, code, 7, 4, vertnums);
+			vertlist[7] = getVertex(i,j,k, code, 6, 4, vertnums);
 		if (table[pbcode] & 256)
 			vertlist[8] = getVertex(i,j,k, code, 0, 4, vertnums);
 		if (table[pbcode] & 512)
 			vertlist[9] = getVertex(i,j,k, code, 1, 5, vertnums);
 		if (table[pbcode] & 1024)
-			vertlist[10] = getVertex(i,j,k, code, 2, 6, vertnums);
+			vertlist[10] = getVertex(i,j,k, code, 3, 7, vertnums);
 		if (table[pbcode] & 2048)
-			vertlist[11] = getVertex(i,j,k, code, 3, 7, vertnums);
+			vertlist[11] = getVertex(i,j,k, code, 2, 6, vertnums);
 	};
 
 	// this is based off the code here:
