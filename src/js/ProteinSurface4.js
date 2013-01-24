@@ -62,20 +62,6 @@ var ProteinSurface = (function() {
 			[ -1, 1, 1 ], [ 1, -1, -1 ], [ -1, -1, 1 ], [ -1, 1, -1 ],
 			[ -1, -1, -1 ] ];
 
-	// define our own faces and vectors to avoid pulling on THREE for the
-	// webworker
-	var Vector3 = function(x, y, z) {
-		this.x = x || 0;
-		this.y = y || 0;
-		this.z = z || 0;
-	};
-
-	var Face3 = function(a, b, c) {
-		this.a = a;
-		this.b = b;
-		this.c = c;
-	};
-
 	this.getFacesAndVertices = function(atoms, atomlist) {
 		var atomsToShow = new Object();
 		for ( var i = 0, lim = atomlist.length; i < lim; i++)
@@ -910,7 +896,7 @@ var ProteinSurface = (function() {
 		if (vertnums[index] < 0) // not created yet
 		{
 			vertnums[index] = verts.length;
-			verts.push(new Vector3(i, j, k));
+			verts.push({x:i, y:j, z:k});
 		}
 		return vertnums[index];
 	};
@@ -1053,8 +1039,9 @@ var ProteinSurface = (function() {
 						var a = vertList[ttable[t]];
 						var b = vertList[ttable[t + 1]];
 						var c = vertList[ttable[t + 2]];
+
 						if (a != b && b != c && a != c)
-							faces.push(new Face3(a, b, c));
+							faces.push({a:a, b:b, c:c});
 						/*
 						if (a != b && b != c && a != c) {
 							counts.incrementUsed(code, t / 3);
