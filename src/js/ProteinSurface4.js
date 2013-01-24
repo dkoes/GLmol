@@ -98,11 +98,6 @@ var ProteinSurface = (function() {
 				finalfaces.push(f);
 		}
 
-		console.log("faces " + faces.length + "  finalfaces "
-				+ finalfaces.length);
-		if(faces.length != finalfaces.length)
-			alert("faces " + faces.length + "  finalfaces "
-				+ finalfaces.length);
 		return {
 			vertices : vertices,
 			faces : finalfaces
@@ -903,14 +898,14 @@ var ProteinSurface = (function() {
 		if (!val1 && val2)
 			p = p2;
 
-		//adjust i,j,k by p
+		// adjust i,j,k by p
 		if (p & 1)
 			k++;
 		if (p & 2)
 			j++;
 		if (p & 4)
 			i++;
-		
+
 		var index = ((pWidth * i) + j) * pHeight + k;
 		if (vertnums[index] < 0) // not created yet
 		{
@@ -920,6 +915,69 @@ var ProteinSurface = (function() {
 		return vertnums[index];
 	};
 
+	//this code allows me to empirically prune the marching cubes code tables
+	//to more efficiently handle discrete data
+	var counter = function() {
+		var data = Array(256);
+		for ( var i = 0; i < 256; i++)
+			data[i] = [];
+
+		this.incrementUsed = function(i, j) {
+			if (typeof data[i][j] === 'undefined')
+				data[i][j] = {
+					used : 0,
+					unused : 0
+				};
+			data[i][j].used++;
+		};
+
+		this.incrementUnused = function(i, j) {
+			if (typeof data[i][j] === 'undefined')
+				data[i][j] = {
+					used : 0,
+					unused : 0
+				};
+			data[i][j].unused++;
+
+		};
+
+		var redoTable = function(triTable) {
+			var str = "[";
+			for ( var i = 0; i < triTable.length; i++) {
+				var code = 0;
+				var table = triTable[i];
+				for ( var j = 0; j < table.length; j++) {
+					code |= (1 << (table[j]));
+				}
+				str += "0x" + code.toString(16) + ", ";
+			}
+			str += "]";
+			console.log(str);
+		}
+		
+		this.print = function() {
+
+			var table = MarchingCube.triTable;
+			var str;
+			var newtable = [];
+			for ( var i = 0; i < table.length; i++) {
+				var newarr = [];
+				for ( var j = 0; j < table[i].length; j += 3) {
+					var k = j / 3;
+					if (typeof data[i][k] === 'undefined' || !data[i][k].unused) {
+						newarr.push(table[i][j]);
+						newarr.push(table[i][j + 1]);
+						newarr.push(table[i][j + 2]);
+					}
+					if (typeof data[i][k] === 'undefined')
+						console.log("undef " + i + "," + k);
+				}
+				newtable.push(newarr);
+			}
+			console.log(JSON.stringify(newtable));
+			redoTable(newtable);
+		};
+	};
 	// this is based off the code here:
 	// http://paulbourke.net/geometry/polygonise/
 	// which is in turn based off of assorted public domain codes
@@ -939,7 +997,6 @@ var ProteinSurface = (function() {
 		// consider every grid cube
 		var etable = MarchingCube.edgeTable;
 		var tritable = MarchingCube.triTable;
-
 		var i, j, k, p, t;
 		var l, w, h, trilen, vlen;
 		var vertList = new Int32Array(12);
@@ -948,18 +1005,19 @@ var ProteinSurface = (function() {
 				for (k = 0, h = pHeight - 1; k < h; k++) {
 					var code = 0;
 					for (p = 0; p < 8; p++) {
-						var index =  ((pWidth * (i+((p&4)>>2))) + j + ((p&2)>>1)) * pHeight + k + (p&1);
+						var index = ((pWidth * (i + ((p & 4) >> 2))) + j + ((p & 2) >> 1))
+								* pHeight + k + (p & 1);
 
 						var val = !!(vpBits[index] & ISDONE);
 						code |= val << p;
 					}
 
 					// set the vertList
-					var ttable = tritable[code];
-					if (ttable.length == 0)
-						continue;
-
 					var ecode = etable[code];
+					if(ecode == 0)
+						continue;
+					var ttable = tritable[code];
+
 					// based on code, determine what vertices are needed for
 					// cube i,j,k
 					// if necessary create them (adding to verts and setting
@@ -995,13 +1053,19 @@ var ProteinSurface = (function() {
 						var a = vertList[ttable[t]];
 						var b = vertList[ttable[t + 1]];
 						var c = vertList[ttable[t + 2]];
-						faces.push(new Face3(a, b, c));
+						if (a != b && b != c && a != c)
+							faces.push(new Face3(a, b, c));
+						/*
+						if (a != b && b != c && a != c) {
+							counts.incrementUsed(code, t / 3);
+						} else
+							counts.incrementUnused(code, t / 3);
+							*/
 					}
 
 				}
 			}
 		}
-
 		// set atom ids
 		for (i = 0, vlen = verts.length; i < vlen; i++) {
 			verts[i].atomid = vpAtomID[verts[i].x * pWidth * pHeight + pHeight
