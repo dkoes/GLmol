@@ -383,13 +383,13 @@ console.log("hetatms " + (+new Date() - time)); time = new Date();
 	      var mat = {wireframe: wireframe};
 	      var toshow = protatms;
 	      if (surfaceMode == 'sas') {
-	         this.generateMesh(this.modelGroup, toshow, toshow, 3, mat,true);
+	         this.generateMesh(this.modelGroup, toshow, toshow, 3, mat);
 	      } else if (surfaceMode == 'ms') {
-	         this.generateMesh(this.modelGroup, toshow, toshow, 4, mat,true);
+	         this.generateMesh(this.modelGroup, toshow, toshow, 4, mat);
 	      } else if (surfaceMode == 'ses') {
-	         this.generateMesh(this.modelGroup, toshow, toshow, 2, mat,true);
+	         this.generateMesh(this.modelGroup, toshow, toshow, 2, mat);
 	      } else if (surfaceMode == 'vdw') {
-	         this.generateMesh(this.modelGroup, toshow, toshow, 1, mat,true);
+	         this.generateMesh(this.modelGroup, toshow, toshow, 1, mat);
 	     }
 	   }
 };

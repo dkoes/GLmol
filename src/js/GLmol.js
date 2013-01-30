@@ -1589,8 +1589,8 @@ var GLmol = (function() {
 		var xmax = ymax = zmax = -9999;
 		var xsum = ysum = zsum = cnt = 0;
 
-		if(atomlist.length == 0)
-			return [ [0,0,0],[0,0,0],[0,0,0]];
+		if (atomlist.length == 0)
+			return [ [ 0, 0, 0 ], [ 0, 0, 0 ], [ 0, 0, 0 ] ];
 		for ( var i in atomlist) {
 			var atom = this.atoms[atomlist[i]];
 			if (atom == undefined)
@@ -1607,7 +1607,7 @@ var GLmol = (function() {
 			ymax = (ymax > atom.y) ? ymax : atom.y;
 			zmax = (zmax > atom.z) ? zmax : atom.z;
 		}
-		
+
 		return [ [ xmin, ymin, zmin ], [ xmax, ymax, zmax ],
 				[ xsum / cnt, ysum / cnt, zsum / cnt ] ];
 	};
@@ -2186,7 +2186,7 @@ var GLmol = (function() {
 	};
 
 	// create a mesh defined from the passed vertices and faces and material
-	var generateSurfaceMesh = function(glmol, VandF,mat) {
+	var generateSurfaceMesh = function(glmol, VandF, mat) {
 		var geo = new THREE.Geometry();
 		// reconstruct vertices and faces
 		geo.vertices = [];
@@ -2255,68 +2255,7 @@ var GLmol = (function() {
 		return ps.getFacesAndVertices(atoms, atomsToShow);
 	};
 
-	// type 1: VDW 3: SAS 4: MS 2: SES
-	// if sync is true, does all work in main thread, otherwise uses workers
-	// with workers, must ensure group is the actual modelgroup since surface
-	// will get added asynchronously
-	// all atoms in atomlist are used to compute surfacees, but only the
-	// surfaces
-	// of atomsToShow are displayed (e.g., for showing cavities)
-	GLmol.prototype.generateMesh = function(group, atomlist, atomsToShow, type,
-			material, sync) {
-		var time = new Date();
-
-
-		var extent = this.getExtent(atomsToShow);
-		var expandedExtent = [
-				[ extent[0][0] - 4, extent[0][1] - 4, extent[0][2] - 4 ],
-				[ extent[1][0] + 4, extent[1][1] + 4, extent[1][2] + 4 ] ];
-		var extendedAtoms = this.getAtomsWithin(atomlist, expandedExtent);
-		this.meshType = type;
-
-		var mat = new THREE.MeshLambertMaterial();
-		mat.vertexColors = THREE.VertexColors;
-		
-		for(var prop in material) {
-			if(material.hasOwnProperty(prop))
-				mat[prop] = material[prop];
-		}
-		 
-		if (sync) { // don't use worker
-			var VandF = generateMeshSyncHelper(type, expandedExtent,
-					extendedAtoms, atomsToShow, this.atoms);
-			console.log("vertices: "+VandF.vertices.length + "  faces: " + VandF.faces.length);
-			var mesh = generateSurfaceMesh(this, VandF, mat);
-			group.add(mesh);
-		} else { // use worker
-
-			var worker = new Worker('js/SurfaceWorker.js');
-			var glmol = this;
-			worker.onmessage = function(event) {
-				var VandF = event.data;
-				var mesh = generateSurfaceMesh(glmol, VandF, mat);
-				group.add(mesh);
-				glmol.show();
-			};
-
-			worker.onerror = function(event) {
-				console.log(event.message + " (" + event.filename + ":"
-						+ event.lineno + ")");
-			};
-
-			worker.postMessage({
-				type : type,
-				expandedExtent : expandedExtent,
-				extendedAtoms : extendedAtoms,
-				atomsToShow : atomsToShow,
-				atoms : this.atoms
-			});
-		}
-
-		console.log("full mesh generation " + (+new Date() - time) + "ms");
-	};
-
-	GLmol.prototype.getAtomsWithin = function(atomlist, extent) {
+	var getAtomsWithin = function(atomlist, extent) {
 		var ret = [];
 
 		for ( var i in atomlist) {
@@ -2333,6 +2272,180 @@ var GLmol = (function() {
 			ret.push(atom.serial);
 		}
 		return ret;
+	};
+
+	GLmol.prototype.getAtomsWithin = getAtomsWithin;
+
+	/*
+	 * Break up bounding box/atoms into smaller pieces so we can parallelize
+	 * with webworkers and also limit the size of the working memory Returns a
+	 * list of bounding boxes with the corresponding atoms. These extents are
+	 * expanded by 4 angstroms on each side.
+	 */
+	var carveUpExtent = function(extent, atomlist, atomstoshow) {
+		var ret = [];
+		var maxVolume = 25000;
+		var volume = function(extent) {
+			var w = extent[1][0] - extent[0][0];
+			var h = extent[1][1] - extent[0][1];
+			var d = extent[1][2] - extent[0][2];
+			return w * h * d;
+		}; // volume
+		var copyExtent = function(extent) {
+			// copy just the dimensions
+			var ret = [];
+			ret[0] = [ extent[0][0], extent[0][1], extent[0][2] ];
+			ret[1] = [ extent[1][0], extent[1][1], extent[1][2] ];
+			return ret;
+		}; // copyExtent
+		var splitExtentR = function(extent) {
+			// recursively split until volume is below maxVol
+			if (volume(extent) < maxVolume) {
+				return [ extent ];
+			} else {
+				// find longest edge
+				var w = extent[1][0] - extent[0][0];
+				var h = extent[1][1] - extent[0][1];
+				var d = extent[1][2] - extent[0][2];
+				var index = 0;
+				if (w > h && w > d) {
+					index = 0;
+				} else if (h > w && h > d) {
+					index = 1;
+				} else {
+					index = 2;
+				}
+
+				// create two halves, splitting at index
+				var a = copyExtent(extent);
+				var b = copyExtent(extent);
+				var mid = (extent[1][index] - extent[0][index]) / 2
+						+ extent[0][index];
+				a[1][index] = mid;
+				b[0][index] = mid;
+
+				var alist = splitExtentR(a);
+				var blist = splitExtentR(b);
+				return alist.concat(blist);
+			}
+		}; // splitExtentR
+
+		// divide up extent
+		var splits = splitExtentR(extent);
+		var ret = [];
+		// now compute atoms within expanded (this could be more efficient)
+		var off = 4;
+		for ( var i = 0, n = splits.length; i < n; i++) {
+			var e = copyExtent(splits[i]);
+			e[0][0] -= off;
+			e[0][1] -= off;
+			e[0][2] -= off;
+			e[1][0] += off;
+			e[1][1] += off;
+			e[1][2] += off;
+
+			var atoms = getAtomsWithin.call(this, atomlist, e);
+			var toshow = getAtomsWithin.call(this, atomstoshow, e);
+
+			ret.push({
+				extent : splits[i],
+				atoms : atoms,
+				toshow : toshow
+			});
+		}
+
+		return ret;
+	};
+
+	// type 1: VDW 3: SAS 4: MS 2: SES
+	// if sync is true, does all work in main thread, otherwise uses workers
+	// with workers, must ensure group is the actual modelgroup since surface
+	// will get added asynchronously
+	// all atoms in atomlist are used to compute surfacees, but only the
+	// surfaces
+	// of atomsToShow are displayed (e.g., for showing cavities)
+	GLmol.prototype.generateMesh = function(group, atomlist, atomsToShow, type,
+			material, sync) {
+		var time = new Date();
+
+		var mat = new THREE.MeshLambertMaterial();
+		mat.vertexColors = THREE.VertexColors;
+
+		for ( var prop in material) {
+			if (material.hasOwnProperty(prop))
+				mat[prop] = material[prop];
+		}
+		// mat.opacity = 0.5;
+		// mat.transparent = true;
+		var extent = this.getExtent(atomsToShow);
+		var expandedExtent = [
+				[ extent[0][0] - 4, extent[0][1] - 4, extent[0][2] - 4 ],
+				[ extent[1][0] + 4, extent[1][1] + 4, extent[1][2] + 4 ] ];
+		var extendedAtoms = this.getAtomsWithin(atomlist, expandedExtent);
+		this.meshType = type;
+
+		var extents = carveUpExtent.call(this, expandedExtent, atomlist,
+				atomsToShow);
+		console.log("Extents " + extents.length);
+		if (sync) { // don't use worker
+			var finalVandF = {
+				vertices : [],
+				faces : [],
+				n : 0
+			};
+			finalVandF.mergeInto = function(VandF) {
+				// merge and update face vertices indices
+				var nv = VandF.vertices.length;
+				this.vertices = this.vertices.concat(VandF.vertices);
+				for ( var i = 0; i < VandF.faces.length; i++) {
+					var face = VandF.faces[i];
+					face.a += this.n;
+					face.b += this.n;
+					face.c += this.n;
+					this.faces.push(face);
+				}
+				this.n += nv;
+			};
+			for ( var i = 0; i < extents.length; i++) {
+				var VandF = generateMeshSyncHelper(type, extents[i].extent,
+						extents[i].atoms, extents[i].toshow, this.atoms);
+				finalVandF.mergeInto(VandF);
+				console.log("vertices: " + VandF.vertices.length + "  faces: "
+						+ VandF.faces.length);
+			}
+			var mesh = generateSurfaceMesh(this, finalVandF, mat);
+			group.add(mesh);
+			this.show();
+
+		} else { // use worker
+
+			for ( var i = 0; i < extents.length; i++) {
+				var worker = new Worker('js/SurfaceWorker.js');
+				var glmol = this;
+				worker.onmessage = function(event) {
+					var VandF = event.data;
+					var mesh = generateSurfaceMesh(glmol, VandF, mat);
+					group.add(mesh);
+					glmol.show();
+					console.log("partial mesh generation " + (+new Date() - time) + "ms");
+				};
+
+				worker.onerror = function(event) {
+					console.log(event.message + " (" + event.filename + ":"
+							+ event.lineno + ")");
+				};
+
+				worker.postMessage({
+					type : type,
+					expandedExtent : extents[i].extent,
+					extendedAtoms : extents[i].atoms,
+					atomsToShow : extents[i].toshow,
+					atoms : this.atoms
+				});
+			}
+		}
+
+		console.log("full mesh generation " + (+new Date() - time) + "ms");
 	};
 
 	return GLmol;

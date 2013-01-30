@@ -473,7 +473,10 @@ var ProteinSurface = (function() {
 										si = cx + mi;
 										sj = cy + mj;
 										sk = cz + mk;
-										if (si < 0 || sj < 0 || sk < 0)
+										if (si < 0 || sj < 0 || sk < 0
+												|| si >= pLength
+												|| sj >= pWidth
+												|| sk >= pHeight)
 											continue;
 										var index = si * pWidth * pHeight + sj
 												* pHeight + sk;
