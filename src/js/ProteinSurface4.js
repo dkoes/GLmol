@@ -62,6 +62,18 @@ var ProteinSurface = (function() {
 			[ -1, 1, 1 ], [ 1, -1, -1 ], [ -1, -1, 1 ], [ -1, 1, -1 ],
 			[ -1, -1, -1 ] ];
 
+	var origextent;
+	
+	var inOrigExtent = function(x,y,z) {
+		if(x < origextent[0][0] || x > origextent[1][0])
+			return false;
+		if(y < origextent[0][1] || y > origextent[1][1])
+			return false;
+		if(z < origextent[0][2] || z > origextent[1][2])
+			return false;
+		return true;
+	};
+	
 	this.getFacesAndVertices = function(atoms, atomlist) {
 		var atomsToShow = new Object();
 		for ( var i = 0, lim = atomlist.length; i < lim; i++)
@@ -80,6 +92,10 @@ var ProteinSurface = (function() {
 			if (!atomsToShow[a] && !atomsToShow[b] && !atomsToShow[c]) {
 				continue;
 			}
+			var av = vertices[f.a];
+			var bv = vertices[f.b];
+			var cv = vertices[f.c];
+
 			if (f.a != f.bb && f.b != f.c && f.a != f.c)
 				finalfaces.push(f);
 		}
@@ -232,7 +248,8 @@ var ProteinSurface = (function() {
 	};
 
 	this.initparm = function(extent, btype) {
-		var margin = 2.5;
+		var margin = 2.5; //2.5
+		origextent = extent;
 		pminx = extent[0][0], pmaxx = extent[1][0];
 		pminy = extent[0][1], pmaxy = extent[1][1];
 		pminz = extent[0][2], pmaxz = extent[1][2];

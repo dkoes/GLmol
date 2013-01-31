@@ -2284,7 +2284,7 @@ var GLmol = (function() {
 	 */
 	var carveUpExtent = function(extent, atomlist, atomstoshow) {
 		var ret = [];
-		var maxVolume = 25000;
+		var maxVolume = 100000;
 		var volume = function(extent) {
 			var w = extent[1][0] - extent[0][0];
 			var h = extent[1][1] - extent[0][1];
@@ -2345,10 +2345,11 @@ var GLmol = (function() {
 			e[1][2] += off;
 
 			var atoms = getAtomsWithin.call(this, atomlist, e);
-			var toshow = getAtomsWithin.call(this, atomstoshow, e);
+			var toshow = getAtomsWithin.call(this, atomstoshow, splits[i]);
 
+			//ultimately, divide up by atom for best meshing
 			ret.push({
-				extent : splits[i],
+				extent : e,
 				atoms : atoms,
 				toshow : toshow
 			});
