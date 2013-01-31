@@ -2387,25 +2387,26 @@ var GLmol = (function() {
 		var extents = carveUpExtent.call(this, expandedExtent, atomlist,
 				atomsToShow);
 		console.log("Extents " + extents.length);
-		if (sync) { // don't use worker
-			var finalVandF = {
-				vertices : [],
-				faces : [],
-				n : 0
-			};
-			finalVandF.mergeInto = function(VandF) {
-				// merge and update face vertices indices
-				var nv = VandF.vertices.length;
-				this.vertices = this.vertices.concat(VandF.vertices);
-				for ( var i = 0; i < VandF.faces.length; i++) {
-					var face = VandF.faces[i];
-					face.a += this.n;
-					face.b += this.n;
-					face.c += this.n;
-					this.faces.push(face);
-				}
-				this.n += nv;
-			};
+		var finalVandF = {
+			vertices : [],
+			faces : [],
+			n : 0
+		};
+		finalVandF.mergeInto = function(VandF) {
+			// merge and update face vertices indices
+			var nv = VandF.vertices.length;
+			this.vertices = this.vertices.concat(VandF.vertices);
+			for ( var i = 0; i < VandF.faces.length; i++) {
+				var face = VandF.faces[i];
+				face.a += this.n;
+				face.b += this.n;
+				face.c += this.n;
+				this.faces.push(face);
+			}
+			this.n += nv;
+		};
+		if (false && sync) { // don't use worker
+
 			for ( var i = 0; i < extents.length; i++) {
 				var VandF = generateMeshSyncHelper(type, extents[i].extent,
 						extents[i].atoms, extents[i].toshow, this.atoms);
@@ -2415,19 +2416,31 @@ var GLmol = (function() {
 			}
 			var mesh = generateSurfaceMesh(this, finalVandF, mat);
 			group.add(mesh);
-			this.show();
 
+		} else if (sync) {
+			// all at once
+			var VandF = generateMeshSyncHelper(type, expandedExtent, atomlist,
+					atomsToShow, this.atoms);
+			var mesh = generateSurfaceMesh(this, VandF, mat);
+			group.add(mesh);
 		} else { // use worker
 
+			var cnt = 0;
 			for ( var i = 0; i < extents.length; i++) {
 				var worker = new Worker('js/SurfaceWorker.js');
 				var glmol = this;
 				worker.onmessage = function(event) {
 					var VandF = event.data;
-					var mesh = generateSurfaceMesh(glmol, VandF, mat);
-					group.add(mesh);
-					glmol.show();
-					console.log("partial mesh generation " + (+new Date() - time) + "ms");
+					finalVandF.mergeInto(VandF);
+					cnt++;
+					if (cnt == extents.length) // last one
+					{
+						var mesh = generateSurfaceMesh(glmol, finalVandF, mat);
+						group.add(mesh);
+						glmol.show();
+						console.log("async mesh generation "
+								+ (+new Date() - time) + "ms");
+					}
 				};
 
 				worker.onerror = function(event) {
