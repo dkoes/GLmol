@@ -39,7 +39,7 @@ var ProteinSurface = (function() {
 
 	var ptranx = 0, ptrany = 0, ptranz = 0;
 	var probeRadius = 1.4;
-	var scaleFactor = 2; //2 is .5A grid
+	var scaleFactor = 2; //2 is .5A grid; if this is made user configurable, also have to adjust offset used to find non-shown atoms
 	var pHeight = 0, pWidth = 0, pLength = 0;
 	var cutRadius = 0;
 	var vpBits = null; // uint8 array of bitmasks
