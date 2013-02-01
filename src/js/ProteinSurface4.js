@@ -39,7 +39,9 @@ var ProteinSurface = (function() {
 
 	var ptranx = 0, ptrany = 0, ptranz = 0;
 	var probeRadius = 1.4;
-	var scaleFactor = 2; //2 is .5A grid; if this is made user configurable, also have to adjust offset used to find non-shown atoms
+	var scaleFactor = 2; // 2 is .5A grid; if this is made user configurable,
+							// also have to adjust offset used to find non-shown
+							// atoms
 	var pHeight = 0, pWidth = 0, pLength = 0;
 	var cutRadius = 0;
 	var vpBits = null; // uint8 array of bitmasks
@@ -47,11 +49,35 @@ var ProteinSurface = (function() {
 	var vpAtomID = null; // intarray
 	var vertnumber = 0, facenumber = 0;
 	var pminx = 0, pminy = 0, pminz = 0, pmaxx = 0, pmaxy = 0, pmaxz = 0;
-	var rasrad = [ 1.90, 1.88, 1.63, 1.48, 1.78, 1.2, 1.87, 1.96, 1.63, 0.74,
-			1.8, 1.48, 1.2 ];// liang
-	// Calpha c n o s h p Cbeta ne fe other ox hx
 
-	var depty = new Array(13), widxz = new Array(13);
+	var vdwRadii = {
+			"H" : 1.2,
+			"Li" : 1.82,
+			"Na" : 2.27,
+			"K" : 2.75,
+			"C" : 1.7,
+			"N" : 1.55,
+			"O" : 1.52,
+			"F" : 1.47,
+			"P" : 1.80,
+			"S" : 1.80,
+			"CL" : 1.75,
+			"BR" : 1.85,
+			"SE" : 1.90,
+			"ZN" : 1.39,
+			"CU" : 1.4,
+			"NI" : 1.63,
+			"X" : 2
+		};
+
+	var getVDWIndex = function(atom) {
+		if(!atom.elem || typeof(vdwRadii[atom.elem]) == "undefined") {
+			return "X";
+		}
+		return atom.elem;
+	};
+	
+	var depty = {}, widxz = {};
 	var faces, verts;
 	var nb = [ [ 1, 0, 0 ], [ -1, 0, 0 ], [ 0, 1, 0 ], [ 0, -1, 0 ],
 			[ 0, 0, 1 ], [ 0, 0, -1 ], [ 1, 1, 0 ], [ 1, -1, 0 ], [ -1, 1, 0 ],
@@ -62,18 +88,18 @@ var ProteinSurface = (function() {
 			[ -1, -1, -1 ] ];
 
 	var origextent;
-	
-	var inOrigExtent = function(x,y,z) {
-		if(x < origextent[0][0] || x > origextent[1][0])
+
+	var inOrigExtent = function(x, y, z) {
+		if (x < origextent[0][0] || x > origextent[1][0])
 			return false;
-		if(y < origextent[0][1] || y > origextent[1][1])
+		if (y < origextent[0][1] || y > origextent[1][1])
 			return false;
-		if(z < origextent[0][2] || z > origextent[1][2])
+		if (z < origextent[0][2] || z > origextent[1][2])
 			return false;
 		return true;
 	};
-	
-	this.getFacesAndVertices = function(atoms, atomlist) {
+
+	this.getFacesAndVertices = function(atomlist) {
 		var atomsToShow = new Object();
 		for ( var i = 0, lim = atomlist.length; i < lim; i++)
 			atomsToShow[atomlist[i]] = true;
@@ -88,11 +114,13 @@ var ProteinSurface = (function() {
 		for ( var i = 0; i < faces.length; i++) {
 			var f = faces[i];
 			var a = vertices[f.a].atomid, b = vertices[f.b].atomid, c = vertices[f.c].atomid;
-			
-			//must be a unique face for each atom
+
+			// must be a unique face for each atom
 			var which = a;
-			if(b < which) which = b;
-			if(c < which) which =c;
+			if (b < which)
+				which = b;
+			if (c < which)
+				which = c;
 			if (!atomsToShow[which]) {
 				continue;
 			}
@@ -104,6 +132,11 @@ var ProteinSurface = (function() {
 				finalfaces.push(f);
 		}
 
+		//try to help the garbage collector
+		vpBits = null; // uint8 array of bitmasks
+		vpDistance = null; // floatarray
+		vpAtomID = null; // intarray
+		
 		return {
 			vertices : vertices,
 			faces : finalfaces
@@ -252,7 +285,8 @@ var ProteinSurface = (function() {
 	};
 
 	this.initparm = function(extent, btype) {
-		var margin = (1/scaleFactor)*5.5; //need margine to avoid boundary/round off effects
+		var margin = (1 / scaleFactor) * 5.5; // need margine to avoid
+												// boundary/round off effects
 		origextent = extent;
 		pminx = extent[0][0], pmaxx = extent[1][0];
 		pminy = extent[0][1], pmaxy = extent[1][1];
@@ -274,13 +308,13 @@ var ProteinSurface = (function() {
 			pmaxz += probeRadius + margin;
 		}
 
-		pminx = Math.floor(pminx*scaleFactor)/scaleFactor;
-		pminy = Math.floor(pminy*scaleFactor)/scaleFactor;
-		pminz = Math.floor(pminz*scaleFactor)/scaleFactor;
-		pmaxx = Math.ceil(pmaxx*scaleFactor)/scaleFactor;
-		pmaxy = Math.ceil(pmaxy*scaleFactor)/scaleFactor;
-		pmaxz = Math.ceil(pmaxz*scaleFactor)/scaleFactor;
-		
+		pminx = Math.floor(pminx * scaleFactor) / scaleFactor;
+		pminy = Math.floor(pminy * scaleFactor) / scaleFactor;
+		pminz = Math.floor(pminz * scaleFactor) / scaleFactor;
+		pmaxx = Math.ceil(pmaxx * scaleFactor) / scaleFactor;
+		pmaxy = Math.ceil(pmaxy * scaleFactor) / scaleFactor;
+		pmaxz = Math.ceil(pmaxz * scaleFactor) / scaleFactor;
+
 		ptranx = -pminx;
 		ptrany = -pminy;
 		ptranz = -pminz;
@@ -305,15 +339,18 @@ var ProteinSurface = (function() {
 	};
 
 	this.boundingatom = function(btype) {
-		var tradius = new Array(13);
+		var tradius = [];
 		var txz, tdept, sradius, idx;
 		flagradius = btype;
 
-		for ( var i = 0; i < 13; i++) {
+		for ( var i in vdwRadii) {
+			if(!vdwRadii.hasOwnProperty(i))
+				continue;
+			var r = vdwRadii[i];
 			if (!btype)
-				tradius[i] = rasrad[i] * scaleFactor + 0.5;
+				tradius[i] = r * scaleFactor + 0.5;
 			else
-				tradius[i] = (rasrad[i] + probeRadius) * scaleFactor + 0.5;
+				tradius[i] = (r + probeRadius) * scaleFactor + 0.5;
 
 			sradius = tradius[i] * tradius[i];
 			widxz[i] = Math.floor(tradius[i]) + 1;
@@ -332,7 +369,7 @@ var ProteinSurface = (function() {
 				}
 			}
 		}
-	}
+	};
 
 	this.fillvoxels = function(atoms, atomlist) { // (int seqinit,int
 		// seqterm,bool
@@ -358,34 +395,6 @@ var ProteinSurface = (function() {
 
 	};
 
-	this.getAtomType = function(atom) {
-		var at = 10;
-		if (atom.atom == 'CA')
-			at = 0;
-		else if (atom.atom == 'C')
-			at = 1;
-		else if (atom.elem == 'C')
-			at = 7;
-		else if (atom.atom == '0')
-			at = 3;
-		else if (atom.elem == 'O')
-			at = 11;
-		else if (atom.atom == 'N')
-			at = 2;
-		else if (atom.elem == 'N')
-			at = 8;
-		else if (atom.elem == 'S')
-			at = 4;
-		else if (atom.elem == 'P')
-			at = 6;
-		else if (atom.atom == 'FE')
-			at = 9;
-		else if (atom.atom == 'H')
-			at = 5;
-		else if (atom.elem == 'H')
-			at = 12;
-		return at;
-	};
 
 	this.fillAtom = function(atom, atoms) {
 		var cx, cy, cz, ox, oy, oz;
@@ -393,12 +402,12 @@ var ProteinSurface = (function() {
 		cy = Math.floor(0.5 + scaleFactor * (atom.y + ptrany));
 		cz = Math.floor(0.5 + scaleFactor * (atom.z + ptranz));
 
-		var at = this.getAtomType(atom);
+		var at = getVDWIndex(atom);
 		var nind = 0;
 		var cnt = 0;
 
-		for (i = 0; i < widxz[at]; i++) {
-			for (j = 0; j < widxz[at]; j++) {
+		for (i = 0, n = widxz[at]; i < n; i++) {
+			for (j = 0; j < n; j++) {
 				if (depty[at][nind] != -1) {
 					for (ii = -1; ii < 2; ii++) {
 						for (jj = -1; jj < 2; jj++) {
@@ -465,10 +474,10 @@ var ProteinSurface = (function() {
 		cy = Math.floor(0.5 + scaleFactor * (atom.y + ptrany));
 		cz = Math.floor(0.5 + scaleFactor * (atom.z + ptranz));
 
-		var at = this.getAtomType(atom);
-
-		for (i = 0; i < widxz[at]; i++) {
-			for (j = 0; j < widxz[at]; j++) {
+		var at = getVDWIndex(atom);
+		var i, j,n;
+		for (i = 0, n = widxz[at]; i < n; i++) {
+			for (j = 0; j < n; j++) {
 				if (depty[at][nind] != -1) {
 					for (ii = -1; ii < 2; ii++) {
 						for (jj = -1; jj < 2; jj++) {
@@ -666,6 +675,7 @@ var ProteinSurface = (function() {
 		}
 		inarray = [];
 		outarray = [];
+		boundPoint = null;
 	};
 
 	this.fastoneshell = function(number, boundPoint) { // (int* innum,int
@@ -907,13 +917,17 @@ var ProteinSurface = (function() {
 		if (vertnums[index] < 0) // not created yet
 		{
 			vertnums[index] = verts.length;
-			verts.push({x:i, y:j, z:k});
+			verts.push({
+				x : i,
+				y : j,
+				z : k
+			});
 		}
 		return vertnums[index];
 	};
 
-	//this code allows me to empirically prune the marching cubes code tables
-	//to more efficiently handle discrete data
+	// this code allows me to empirically prune the marching cubes code tables
+	// to more efficiently handle discrete data
 	var counter = function() {
 		var data = Array(256);
 		for ( var i = 0; i < 256; i++)
@@ -951,7 +965,7 @@ var ProteinSurface = (function() {
 			str += "]";
 			console.log(str);
 		}
-		
+
 		this.print = function() {
 
 			var table = MarchingCube.triTable;
@@ -1011,7 +1025,7 @@ var ProteinSurface = (function() {
 
 					// set the vertList
 					var ecode = etable[code];
-					if(ecode == 0)
+					if (ecode == 0)
 						continue;
 					var ttable = tritable[code];
 
@@ -1052,13 +1066,16 @@ var ProteinSurface = (function() {
 						var c = vertList[ttable[t + 2]];
 
 						if (a != b && b != c && a != c)
-							faces.push({a:a, b:b, c:c});
+							faces.push({
+								a : a,
+								b : b,
+								c : c
+							});
 						/*
-						if (a != b && b != c && a != c) {
-							counts.incrementUsed(code, t / 3);
-						} else
-							counts.incrementUnused(code, t / 3);
-							*/
+						 * if (a != b && b != c && a != c) {
+						 * counts.incrementUsed(code, t / 3); } else
+						 * counts.incrementUnused(code, t / 3);
+						 */
 					}
 
 				}

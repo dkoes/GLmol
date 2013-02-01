@@ -2090,9 +2090,7 @@ var GLmol = (function() {
 								me.rotationGroup.position.z -= scaleFactor
 										* ev.originalEvent.wheelDelta / 400;
 							}
-							console.log(ev.originalEvent.wheelDelta,
-									ev.originalEvent.detail,
-									me.rotationGroup.position.z);
+
 							me.show();
 						});
 		glDOM.bind("contextmenu", function(ev) {
@@ -2149,8 +2147,7 @@ var GLmol = (function() {
 								var q = me.rotationGroup.quaternion;
 								var qinv = new THREE.Quaternion(q.x, q.y, q.z,
 										q.w).inverse().normalize();
-								var translation = qinv
-										.multiplyVector3(translationByScreen);
+								var translation =  translationByScreen.applyQuaternion(qinv);
 								me.modelGroup.position.x = me.currentModelPos.x
 										+ translation.x;
 								me.modelGroup.position.y = me.currentModelPos.y
@@ -2255,7 +2252,7 @@ var GLmol = (function() {
 		console.log("marching cube " + (time5 - time4) + "  " + (time5 - time)
 				+ "ms");
 		ps.laplaciansmooth(1);
-		return ps.getFacesAndVertices(atoms, atomsToShow);
+		return ps.getFacesAndVertices(atomsToShow);
 	};
 
 	var getAtomsWithin = function(atomlist, extent) {
@@ -2415,20 +2412,35 @@ var GLmol = (function() {
 			extents.sort(sortFunc);
 		}
 		
-		console.log("Extents " + extents.length);
+		console.log("Extents " + extents.length + "  " + (+new Date() - time) + "ms");
+		
+		var reducedAtoms = [];
+		//to reduce amount data transfered, just pass x,y,z,serial and elem
+		for(var i = 0, n = atomlist.length; i < n; i++)
+		{
+			var idx = atomlist[i];
+			var atom = this.atoms[idx];
+			reducedAtoms[idx] = {x:atom.x,y:atom.y,z:atom.z,serial:atom.serial,elem:atom.elem};
+		}
+		
 		if (sync) { // don't use worker, still break up for memory purposes
 
 			for ( var i = 0; i < extents.length; i++) {
 				var VandF = generateMeshSyncHelper(type, extents[i].extent,
-						extents[i].atoms, extents[i].toshow, this.atoms);
+						extents[i].atoms, extents[i].toshow, reducedAtoms);
 				var mesh = generateSurfaceMesh(this, VandF, mat);
 				group.add(mesh);				
 			}
 		} else { // use worker
 			var workers = [];
-			var cnt = 0;
+			if(type < 0) type = 0; //negative reserved for atom data
 			for(var i = 0; i < numWorkers; i++) {
-				workers.push(new Worker('js/SurfaceWorker.js'));
+				var w = new Worker('js/SurfaceWorker.js');
+				workers.push(w);
+				w.postMessage({
+					type: -1,
+					atoms : reducedAtoms
+				});
 			}
 			for ( var i = 0; i < extents.length; i++) {
 				var worker = workers[i%workers.length];
@@ -2452,7 +2464,6 @@ var GLmol = (function() {
 					expandedExtent : extents[i].extent,
 					extendedAtoms : extents[i].atoms,
 					atomsToShow : extents[i].toshow,
-					atoms : this.atoms
 				});
 			}
 		}
