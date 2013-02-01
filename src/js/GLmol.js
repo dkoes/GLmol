@@ -2336,7 +2336,7 @@ var GLmol = (function() {
 		var splits = splitExtentR(extent);
 		var ret = [];
 		// now compute atoms within expanded (this could be more efficient)
-		var off = 6; //enough for water and 2*r
+		var off = 6; //enough for water and 2*r, also depends on scale factor 
 		for ( var i = 0, n = splits.length; i < n; i++) {
 			var e = copyExtent(splits[i]);
 			e[0][0] -= off;

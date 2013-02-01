@@ -38,7 +38,8 @@ var ProteinSurface = (function() {
 	var ISBOUND = 4;
 
 	var ptranx = 0, ptrany = 0, ptranz = 0;
-	var probeRadius = 1.4, scaleFactor = 1;
+	var probeRadius = 1.4;
+	var scaleFactor = 2; //2 is .5A grid
 	var pHeight = 0, pWidth = 0, pLength = 0;
 	var cutRadius = 0;
 	var vpBits = null; // uint8 array of bitmasks
@@ -51,7 +52,6 @@ var ProteinSurface = (function() {
 	// Calpha c n o s h p Cbeta ne fe other ox hx
 
 	var depty = new Array(13), widxz = new Array(13);
-	var fixsf = 2; // SHOULD BE 2, .5A grid is assumed throughout
 	var faces, verts;
 	var nb = [ [ 1, 0, 0 ], [ -1, 0, 0 ], [ 0, 1, 0 ], [ 0, -1, 0 ],
 			[ 0, 0, 1 ], [ 0, 0, -1 ], [ 1, 1, 0 ], [ 1, -1, 0 ], [ -1, 1, 0 ],
@@ -252,7 +252,7 @@ var ProteinSurface = (function() {
 	};
 
 	this.initparm = function(extent, btype) {
-		var margin = 2.75; //need margine to avoid boundary/round off effects
+		var margin = (1/scaleFactor)*5.5; //need margine to avoid boundary/round off effects
 		origextent = extent;
 		pminx = extent[0][0], pmaxx = extent[1][0];
 		pminy = extent[0][1], pmaxy = extent[1][1];
@@ -274,18 +274,16 @@ var ProteinSurface = (function() {
 			pmaxz += probeRadius + margin;
 		}
 
-		pminx = Math.floor(pminx*fixsf)/fixsf;
-		pminy = Math.floor(pminy*fixsf)/fixsf;
-		pminz = Math.floor(pminz*fixsf)/fixsf;
-		pmaxx = Math.ceil(pmaxx*fixsf)/fixsf;
-		pmaxy = Math.ceil(pmaxy*fixsf)/fixsf;
-		pmaxz = Math.ceil(pmaxz*fixsf)/fixsf;
+		pminx = Math.floor(pminx*scaleFactor)/scaleFactor;
+		pminy = Math.floor(pminy*scaleFactor)/scaleFactor;
+		pminz = Math.floor(pminz*scaleFactor)/scaleFactor;
+		pmaxx = Math.ceil(pmaxx*scaleFactor)/scaleFactor;
+		pmaxy = Math.ceil(pmaxy*scaleFactor)/scaleFactor;
+		pmaxz = Math.ceil(pmaxz*scaleFactor)/scaleFactor;
 		
 		ptranx = -pminx;
 		ptrany = -pminy;
 		ptranz = -pminz;
-
-		scaleFactor = fixsf;
 
 		pLength = Math.ceil(scaleFactor * (pmaxx - pminx)) + 1;
 		pWidth = Math.ceil(scaleFactor * (pmaxy - pminy)) + 1;
