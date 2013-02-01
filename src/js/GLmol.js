@@ -40,6 +40,9 @@ THREE.Matrix4.prototype.isIdentity = function() {
 };
 
 var GLmol = (function() {
+	var numWorkers = 4; //unfortunately can't be smarter than this
+	var maxVolume = 64000; //how much to break up surface calculations
+
 	function GLmol(id, suppressAutoload) {
 		if (id)
 			this.create(id, suppressAutoload);
@@ -1599,7 +1602,7 @@ var GLmol = (function() {
 			xsum += atom.x;
 			ysum += atom.y;
 			zsum += atom.z;
-
+			
 			xmin = (xmin < atom.x) ? xmin : atom.x;
 			ymin = (ymin < atom.y) ? ymin : atom.y;
 			zmin = (zmin < atom.z) ? zmin : atom.z;
@@ -2284,7 +2287,6 @@ var GLmol = (function() {
 	 */
 	var carveUpExtent = function(extent, atomlist, atomstoshow) {
 		var ret = [];
-		var maxVolume = 100000;
 		var volume = function(extent) {
 			var w = extent[1][0] - extent[0][0];
 			var h = extent[1][1] - extent[0][1];
@@ -2334,7 +2336,7 @@ var GLmol = (function() {
 		var splits = splitExtentR(extent);
 		var ret = [];
 		// now compute atoms within expanded (this could be more efficient)
-		var off = 4;
+		var off = 6; //enough for water and 2*r
 		for ( var i = 0, n = splits.length; i < n; i++) {
 			var e = copyExtent(splits[i]);
 			e[0][0] -= off;
@@ -2349,7 +2351,7 @@ var GLmol = (function() {
 
 			//ultimately, divide up by atom for best meshing
 			ret.push({
-				extent : e,
+				extent : splits[i],
 				atoms : atoms,
 				toshow : toshow
 			});
@@ -2365,8 +2367,10 @@ var GLmol = (function() {
 	// all atoms in atomlist are used to compute surfacees, but only the
 	// surfaces
 	// of atomsToShow are displayed (e.g., for showing cavities)
+	//if focusSele is specified, will start rending surface around the
+	//atoms specified by this selection
 	GLmol.prototype.generateMesh = function(group, atomlist, atomsToShow, type,
-			material, sync) {
+			material, focusSele, sync) {
 		var time = new Date();
 
 		var mat = new THREE.MeshLambertMaterial();
@@ -2376,72 +2380,66 @@ var GLmol = (function() {
 			if (material.hasOwnProperty(prop))
 				mat[prop] = material[prop];
 		}
-		// mat.opacity = 0.5;
-		// mat.transparent = true;
+		//mat.opacity = 0.8;
+		//mat.transparent = true;
 		var extent = this.getExtent(atomsToShow);
-		var expandedExtent = [
-				[ extent[0][0] - 4, extent[0][1] - 4, extent[0][2] - 4 ],
-				[ extent[1][0] + 4, extent[1][1] + 4, extent[1][2] + 4 ] ];
-		var extendedAtoms = this.getAtomsWithin(atomlist, expandedExtent);
 		this.meshType = type;
 
-		var extents = carveUpExtent.call(this, expandedExtent, atomlist,
-				atomsToShow);
+		var extents = carveUpExtent.call(this, extent, atomlist, atomsToShow);
+		
+		if(focusSele && focusSele.length && focusSele.length > 0)
+		{
+			var seleExtent = this.getExtent(focusSele);
+			//sort by how close to center of seleExtent
+			var sortFunc = function(a,b) {
+				var distSq = function(ex, sele) {
+					//distance from e (which has no center of mass) and
+					//sele which does
+					var e = ex.extent;
+					var x = e[1][0]-e[0][0];
+					var y = e[1][1]-e[0][1];
+					var z = e[1][2]-e[0][2];
+					var dx = (x-sele[2][0]);
+					dx *= dx;
+					var dy = (y-sele[2][1]);
+					dy *= dy;
+					var dz = (z-sele[2][2]);
+					dz *= dz;
+					
+					return dx+dy+dz;
+				};
+				var d1 = distSq(a,seleExtent);
+				var d2 = distSq(b,seleExtent);
+				return d1-d2;
+			};
+			extents.sort(sortFunc);
+		}
+		
 		console.log("Extents " + extents.length);
-		var finalVandF = {
-			vertices : [],
-			faces : [],
-			n : 0
-		};
-		finalVandF.mergeInto = function(VandF) {
-			// merge and update face vertices indices
-			var nv = VandF.vertices.length;
-			this.vertices = this.vertices.concat(VandF.vertices);
-			for ( var i = 0; i < VandF.faces.length; i++) {
-				var face = VandF.faces[i];
-				face.a += this.n;
-				face.b += this.n;
-				face.c += this.n;
-				this.faces.push(face);
-			}
-			this.n += nv;
-		};
-		if (false && sync) { // don't use worker
+		if (sync) { // don't use worker, still break up for memory purposes
 
 			for ( var i = 0; i < extents.length; i++) {
 				var VandF = generateMeshSyncHelper(type, extents[i].extent,
 						extents[i].atoms, extents[i].toshow, this.atoms);
-				finalVandF.mergeInto(VandF);
-				console.log("vertices: " + VandF.vertices.length + "  faces: "
-						+ VandF.faces.length);
+				var mesh = generateSurfaceMesh(this, VandF, mat);
+				group.add(mesh);				
 			}
-			var mesh = generateSurfaceMesh(this, finalVandF, mat);
-			group.add(mesh);
-
-		} else if (sync) {
-			// all at once
-			var VandF = generateMeshSyncHelper(type, expandedExtent, atomlist,
-					atomsToShow, this.atoms);
-			var mesh = generateSurfaceMesh(this, VandF, mat);
-			group.add(mesh);
 		} else { // use worker
-
+			var workers = [];
 			var cnt = 0;
+			for(var i = 0; i < numWorkers; i++) {
+				workers.push(new Worker('js/SurfaceWorker.js'));
+			}
 			for ( var i = 0; i < extents.length; i++) {
-				var worker = new Worker('js/SurfaceWorker.js');
+				var worker = workers[i%workers.length];
 				var glmol = this;
 				worker.onmessage = function(event) {
 					var VandF = event.data;
-					finalVandF.mergeInto(VandF);
-					cnt++;
-					if (cnt == extents.length) // last one
-					{
-						var mesh = generateSurfaceMesh(glmol, finalVandF, mat);
-						group.add(mesh);
-						glmol.show();
-						console.log("async mesh generation "
-								+ (+new Date() - time) + "ms");
-					}
+					var mesh = generateSurfaceMesh(glmol, VandF, mat);
+					group.add(mesh);
+					glmol.show();
+					console.log("async mesh generation "
+								+ (+new Date() - time) + "ms");					
 				};
 
 				worker.onerror = function(event) {
